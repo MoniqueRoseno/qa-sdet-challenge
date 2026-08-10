@@ -12,8 +12,6 @@ cypress/videos/
 cypress/downloads/
 
 # Test reports
-cypress/screenshots/
-cypress/videos/
 cypress/reports/
 mochawesome-report/
 
