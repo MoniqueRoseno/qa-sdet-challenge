@@ -28,6 +28,7 @@ export default defineConfig({
   pageLoadTimeout: 60000,
   requestTimeout: 10000,
   responseTimeout: 30000,
+  
   reporter: "cypress-mochawesome-reporter",
 
   reporterOptions: {
