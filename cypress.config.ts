@@ -46,9 +46,9 @@ export default defineConfig({
       testUserEmail: process.env.TEST_USER_EMAIL,
       testUserPassword: process.env.TEST_USER_PASSWORD,
 
-      trelloBoardId: process.env.TRELLO_BOARD_ID,
-      trelloApiKey: process.env.TRELLO_API_KEY,
+      triKey: process.env.TRELLO_API_KEY,
       trelloToken: process.env.TRELLO_TOKEN,
+      trelloBoardId: process.env.TRELLO_BOARD_ID,
     },
 
     setupNodeEvents,
