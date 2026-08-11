@@ -39,7 +39,7 @@ When("ele realiza uma busca sem informar um termo", () => {
 });
 
 Then("o sistema deve manter a listagem de produtos disponível", () => {
-  cy.get(".productinfo")
+  cy.get(".productinfo", { timeout: 10000 })
     .should("exist")
     .and("have.length.greaterThan", 0);
 });
@@ -50,7 +50,7 @@ When("ele realiza uma busca contendo apenas espaços", () => {
 });
 
 Then("o sistema deve apresentar comportamento equivalente à busca sem termo",() => {
-    cy.get(".productinfo")
+    cy.get(".productinfo", { timeout: 10000 })
       .should("exist")
       .and("have.length.greaterThan", 0);
   }

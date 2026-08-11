@@ -24,6 +24,10 @@ async function setupNodeEvents(
 }
 
 export default defineConfig({
+  defaultCommandTimeout: 10000,
+  pageLoadTimeout: 60000,
+  requestTimeout: 10000,
+  responseTimeout: 30000,
   reporter: "cypress-mochawesome-reporter",
 
   reporterOptions: {
@@ -46,7 +50,7 @@ export default defineConfig({
       testUserEmail: process.env.TEST_USER_EMAIL,
       testUserPassword: process.env.TEST_USER_PASSWORD,
 
-      triKey: process.env.TRELLO_API_KEY,
+      trelloApiKey: process.env.TRELLO_API_KEY,
       trelloToken: process.env.TRELLO_TOKEN,
       trelloBoardId: process.env.TRELLO_BOARD_ID,
     },

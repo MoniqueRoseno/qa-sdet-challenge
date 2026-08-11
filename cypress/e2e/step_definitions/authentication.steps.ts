@@ -19,7 +19,7 @@ When("informa credenciais válidas", () => {
 });
 
 When("informa uma senha inválida", () => {
-  getCredentials().then(({ email, password }) => {
+  getCredentials().then(({ email }) => {
    loginPage.login(email, "invalid-password");
   });
 });
@@ -35,7 +35,7 @@ When("realiza logout", () => {
 });
 
 Then("deve acessar sua conta com sucesso", () => {
-   getCredentials().then(({ email, password }) => {
+   getCredentials().then(({ email }) => {
    loginPage.validateSuccessfulLogin(email);
   });
 });

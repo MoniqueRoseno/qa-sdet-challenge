@@ -14,30 +14,27 @@ let token: string;
 
 Given("que possuo credenciais válidas para acessar o Trello",() => {
     cy.env(
-      ["trelloBoardId", "trelloApiKey", "trelloToken"],
-      { log: false }
+  ["trelloBoardId", "trelloApiKey", "trelloToken"],
+  { log: false }
     ).then((env) => {
-      boardId = env.trelloBoardId;
-      apiKey = env.trelloApiKey;
-      token = env.trelloToken;
+       boardId = env.trelloBoardId;
+       apiKey = env.trelloApiKey;
+       token = env.trelloToken;
 
-      expect(
-        boardId,
-        "TRELLO_BOARD_ID deve estar configurado"
-      ).to.be.a("string").and.not.be.empty;
+  expect(boardId, "TRELLO_BOARD_ID deve estar configurado")
+    .to.be.a("string")
+    .and.not.be.empty;
 
-      expect(
-        apiKey,
-        "TRELLO_API_KEY deve estar configurada"
-      ).to.be.a("string").and.not.be.empty;
+  expect(apiKey, "TRELLO_API_KEY deve estar configurada")
+    .to.be.a("string")
+    .and.not.be.empty;
 
-      expect(
-        token,
-        "TRELLO_TOKEN deve estar configurado"
-      ).to.be.a("string").and.not.be.empty;
-    });
-  }
-); 
+  expect(token, "TRELLO_TOKEN deve estar configurado")
+    .to.be.a("string")
+    .and.not.be.empty;
+});
+
+})
 
 When("consulto as ações do board", () => {
   trelloApi
