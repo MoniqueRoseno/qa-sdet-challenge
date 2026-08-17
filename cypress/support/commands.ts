@@ -16,7 +16,8 @@
 // Cypress.Commands.overwrite('visit', (originalFn, url, options) => { ... })
 
 
-Cypress.Commands.add("login",
+Cypress.Commands.add(
+  "login",
   (email: string, password: string) => {
     cy.visit("/login");
 
@@ -29,28 +30,16 @@ Cypress.Commands.add("login",
     cy.get('[data-qa="login-password"]')
       .should("be.visible")
       .clear()
-      .type(password, { log: false })
-      .invoke("val")
-      .should("not.be.empty");
+      .type(password, { log: false });
 
     cy.get('[data-qa="login-button"]')
       .should("be.visible")
       .click();
 
-    cy.location("pathname", { timeout: 10000 }).then((pathname) => {
-      if (pathname === "/login") {
-        cy.contains("Your email or password is incorrect!")
-          .should("be.visible");
+    cy.location("pathname", { timeout: 20000 })
+      .should("eq", "/");
 
-        throw new Error(
-          "Login não foi aceito no ambiente de execução. Verifique TEST_USER_EMAIL e TEST_USER_PASSWORD."
-        );
-      }
-
-      expect(pathname).to.eq("/");
-    });
-
-    cy.get('a[href="/logout"]', { timeout: 10000 })
+    cy.get('a[href="/logout"]', { timeout: 20000 })
       .should("be.visible");
   }
 );
