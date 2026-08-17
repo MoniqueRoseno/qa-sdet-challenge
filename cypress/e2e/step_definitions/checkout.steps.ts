@@ -8,16 +8,14 @@ import { productsPage } from "../../support/page_objects/ProductsPage";
 import { cartPage } from "../../support/page_objects/CartPage";
 import { checkoutPage } from "../../support/page_objects/CheckoutPage";
 import { getCredentials } from "../../support/utils/credentials";
+import { ProductFactory } from "../../support/factories/ProductFactory";
 
-const product = {
-  id: 2,
-  name: "Men Tshirt",
-};
+const product = ProductFactory.defaultProduct();
 
 Given("que o usuário está autenticado para realizar uma compra",() => {
     getCredentials().then(({ email, password }) => {
-    cy.login(email, password);
-});
+      cy.login(email, password);
+    });
   }
 );
 
@@ -59,7 +57,9 @@ Then("deve apresentar o endereço de cobrança", () => {
   checkoutPage.validateBillingAddress();
 });
 
-Then("deve apresentar o produto na revisão do pedido",() => {
+Then(
+  "deve apresentar o produto na revisão do pedido",
+  () => {
     checkoutPage.validateProduct(
       product.id,
       product.name

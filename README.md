@@ -1,14 +1,15 @@
 # QA/SDET Challenge
 
-Projeto de automação de testes desenvolvido como parte de um desafio técnico para QA.
+Projeto de automação de testes desenvolvido como parte de um desafio técnico para QA/SDET.
 
-A solução utiliza Cypress, TypeScript e Cucumber para automação de cenários Web e API, com foco em legibilidade, rastreabilidade, reutilização e execução reproduzível.
+A solução utiliza Cypress, TypeScript e Cucumber para automação de cenários Web e API, com foco em qualidade de engenharia, rastreabilidade, isolamento, reutilização, segurança das evidências e execução reproduzível.
 
 ## Tecnologias
 
 - Cypress
 - TypeScript
 - Cucumber / Gherkin
+- AJV / JSON Schema
 - ESLint
 - Mochawesome
 - GitHub Actions
@@ -30,7 +31,10 @@ Foram automatizados os seguintes fluxos:
 Foram automatizados cenários para:
 
 - consulta de ações de um board utilizando a API do Trello;
-- criação de contas utilizando a API do Automation Exercise.
+- criação de contas utilizando a API do Automation Exercise;
+- validação de contrato das respostas utilizando JSON Schema;
+- validação de regras de negócio;
+- geração de dados únicos para cenários mutáveis.
 
 A relação entre requisitos e cenários pode ser consultada em:
 
@@ -49,9 +53,17 @@ A relação entre requisitos e cenários pode ser consultada em:
 │   │   ├── features/
 │   │   └── step_definitions/
 │   │
+│   ├── schemas/
+│   │   ├── account-created.schema.json
+│   │   ├── account-error.schema.json
+│   │   └── trello-actions.schema.json
+│   │
 │   └── support/
+│       ├── api/
+│       ├── factories/
 │       ├── page_objects/
 │       ├── utils/
+│       ├── validators/
 │       ├── commands.ts
 │       └── e2e.ts
 │
@@ -61,40 +73,88 @@ A relação entre requisitos e cenários pode ser consultada em:
 ├── eslint.config.js
 ├── package.json
 ├── tsconfig.json
-└── TRACEABILITY.md
+├── TRACEABILITY.md
+└── SDET_PARECER.md
 ```
 
 ## Arquitetura
 
-Os testes foram organizados buscando separar as responsabilidades entre as diferentes camadas.
+A solução foi estruturada com separação de responsabilidades entre comportamento, orquestração, interação com interfaces, comunicação com APIs, geração de dados e validação de contratos.
 
-### Feature files
+### Feature Files
 
-Os arquivos `.feature` descrevem os comportamentos esperados utilizando Gherkin.
+Os arquivos `.feature` descrevem os comportamentos esperados utilizando Gherkin declarativo.
+
+As tags permitem rastrear os cenários até os requisitos correspondentes.
 
 ### Step Definitions
 
-Os Step Definitions são responsáveis pela orquestração dos cenários, evitando concentrar seletores e detalhes de implementação.
+Os Step Definitions são responsáveis pela orquestração dos cenários e pelas expectativas de negócio.
+
+Detalhes de implementação, seletores, geração de dados e chamadas HTTP são mantidos em suas respectivas camadas.
 
 ### Page Objects
 
-Os Page Objects encapsulam seletores, interações e validações relacionadas às páginas da aplicação.
-
-### Commands
-
-Custom Commands são utilizados para comportamentos técnicos reutilizáveis, como autenticação utilizada como pré-condição de outros fluxos.
+Os Page Objects encapsulam seletores, interações e validações relacionadas às páginas da aplicação, reduzindo duplicação e centralizando alterações de interface.
 
 ### API
 
-A automação de API é mantida separada da camada visual e utiliza dados e configurações externas ao código sempre que necessário.
+A camada `support/api` encapsula a comunicação HTTP com os serviços utilizados pelos testes.
+
+Os Step Definitions não concentram detalhes de transporte, mantendo separadas as responsabilidades de execução da requisição e validação do comportamento.
+
+### Factories
+
+A camada `support/factories` centraliza a criação e disponibilização das massas de teste.
+
+São utilizadas factories para:
+
+- contas;
+- produtos;
+- dados de pagamento.
+
+Para cenários que modificam estado, como criação de conta, são gerados dados únicos para reduzir colisões entre execuções e favorecer a idempotência.
+
+### Validação de contrato
+
+As respostas das APIs são validadas utilizando JSON Schema e AJV.
+
+A estratégia de validação considera três níveis:
+
+1. transporte — status HTTP;
+2. contrato — estrutura e tipos da resposta;
+3. negócio — valores e comportamentos esperados.
+
+Dessa forma, uma resposta tecnicamente válida não é considerada suficiente caso o contrato ou a regra de negócio estejam incorretos.
+
+### Sanitização de dados
+
+Requests e responses utilizadas para diagnóstico são sanitizadas antes de serem registradas.
+
+Campos sensíveis, como senhas, tokens e API Keys, são mascarados para evitar exposição em logs e evidências.
+
+As requisições que contêm informações sensíveis utilizam `log: false`, e somente versões sanitizadas são registradas para diagnóstico.
+
+### Resiliência e classificação de falhas
+
+A suíte realiza verificações de disponibilidade para dependências externas e diferencia falhas funcionais de problemas relacionados ao ambiente.
+
+A classificação considera, entre outros casos:
+
+- `401/403` — configuração ou autenticação;
+- `429` — rate limit da dependência externa;
+- `5xx` — indisponibilidade ou instabilidade do serviço;
+- falhas de contrato ou regra de negócio — falhas funcionais da execução.
+
+A indisponibilidade de uma dependência não é convertida em sucesso ou ignorada. A execução permanece com falha, mas apresenta uma classificação que auxilia na identificação da causa.
 
 ## Pré-requisitos
 
 Para executar o projeto é necessário possuir:
 
-- Node.js
-- npm
-- Git
+- Node.js;
+- npm;
+- Git.
 
 ## Instalação
 
@@ -107,8 +167,6 @@ npm ci
 ## Configuração das variáveis de ambiente
 
 Crie um arquivo `.env` na raiz do projeto com base no `.env.example`.
-
-Exemplo:
 
 ```env
 BASE_URL=https://automationexercise.com
@@ -123,7 +181,9 @@ TRELLO_BOARD_ID=
 
 > O arquivo `.env` não deve ser versionado.
 
-As credenciais e tokens utilizados pela automação são configurados externamente para evitar a exposição de dados sensíveis no repositório.
+Credenciais e tokens são configurados externamente e não são armazenados no código-fonte.
+
+No pipeline, esses valores são fornecidos através de GitHub Secrets.
 
 ## Execução
 
@@ -151,13 +211,13 @@ npm run test:smoke
 npm run test:regression
 ```
 
-### Testes Web
+### Web
 
 ```bash
 npm run test:e2e
 ```
 
-### Testes de API
+### API
 
 ```bash
 npm run test:api
@@ -177,7 +237,7 @@ npm run report
 
 ## Estratégia de testes
 
-Os cenários são classificados utilizando tags para permitir diferentes estratégias de execução.
+Os cenários são classificados através de tags para permitir execução seletiva e rastreabilidade.
 
 Principais tags:
 
@@ -185,22 +245,50 @@ Principais tags:
 - `@regression` — cobertura complementar e cenários negativos;
 - `@web` — automação Web;
 - `@api` — automação de API;
-- `@WEB-01` a `@WEB-05` — rastreabilidade dos requisitos Web;
-- `@API-01` e `@API-02` — rastreabilidade dos requisitos de API.
+- `@WEB-01` a `@WEB-05` — rastreabilidade Web;
+- `@API-01` e `@API-02` — rastreabilidade API.
 
-Os cenários foram desenvolvidos de forma independente, evitando dependência da ordem de execução.
+Os cenários foram desenvolvidos buscando independência entre execuções e evitando dependência de ordem.
+
+## Estratégia de dados
+
+Dados reutilizáveis de produto e pagamento são centralizados em factories, evitando definições duplicadas nos Step Definitions.
+
+Dados mutáveis são tratados de forma diferente de dados de referência.
+
+Na criação de conta via API, a `AccountFactory` gera dados únicos para reduzir colisões entre execuções.
+
+Após os cenários que criam uma conta, a suíte realiza a remoção da massa criada quando aplicável, reduzindo resíduos no ambiente.
+
+Essa estratégia busca favorecer isolamento, repetibilidade e idempotência dos testes.
+
+## Política de Retry
+
+A suíte utiliza uma política limitada e transparente de retry:
+
+- `runMode: 1` — em execução headless/CI, uma falha pode receber uma tentativa adicional;
+- `openMode: 0` — durante execução interativa local, retries permanecem desabilitados.
+
+Retry não é utilizado para transformar falhas determinísticas em sucesso.
+
+Falhas relacionadas a contrato, regra de negócio, autenticação ou configuração devem permanecer visíveis e ser investigadas.
+
+A tentativa adicional em CI busca auxiliar na identificação de instabilidades transitórias e flakiness. A ocorrência inicial continua observável nos resultados da execução.
+
+Indisponibilidades de serviços externos são classificadas como problemas de ambiente/configuração em vez de serem tratadas apenas através de novas tentativas.
 
 ## Relatórios e evidências
 
 A execução gera relatório consolidado utilizando Mochawesome.
 
-Em caso de falha, também podem ser geradas evidências como:
+Em caso de falha, podem ser gerados:
 
 - screenshots;
 - vídeos;
-- relatório HTML.
+- relatório HTML;
+- informações de diagnóstico sanitizadas.
 
-Esses artefatos podem ser utilizados para auxiliar na investigação de falhas.
+Os artefatos auxiliam na investigação sem expor deliberadamente credenciais ou tokens utilizados pela automação.
 
 ## CI/CD
 
@@ -209,79 +297,91 @@ O projeto possui pipeline utilizando GitHub Actions.
 O pipeline executa:
 
 1. checkout do código;
-2. instalação das dependências com `npm ci`;
-3. análise estática com ESLint;
-4. execução da suíte automatizada;
-5. publicação dos artefatos de teste.
+2. configuração do Node.js;
+3. instalação reproduzível com `npm ci`;
+4. análise estática com ESLint;
+5. execução da suíte automatizada;
+6. publicação dos artefatos de teste.
 
-Credenciais utilizadas pelo pipeline são configuradas através de GitHub Secrets e não são armazenadas no código-fonte.
+Credenciais utilizadas pelo pipeline são configuradas através de GitHub Secrets.
+
+Os mecanismos de diagnóstico e classificação de indisponibilidade ajudam a diferenciar falhas funcionais de problemas relacionados às dependências externas.
 
 ## Hipóteses
 
-Para implementação da solução, foram consideradas as seguintes hipóteses:
+Foram consideradas as seguintes hipóteses:
 
-- o ambiente do Automation Exercise está disponível durante a execução;
-- o usuário utilizado nos testes Web já está previamente cadastrado;
-- as credenciais são fornecidas através de variáveis de ambiente;
-- o board utilizado nos testes do Trello existe e possui ações disponíveis para consulta;
-- serviços externos podem apresentar indisponibilidade ou variações de tempo de resposta;
-- os cenários foram implementados considerando o comportamento atualmente observado nas aplicações utilizadas no desafio.
+- o usuário utilizado nos testes Web está previamente cadastrado;
+- credenciais válidas são fornecidas através de variáveis de ambiente;
+- o board configurado no Trello existe e possui ações disponíveis;
+- dependências externas podem apresentar indisponibilidade, rate limit ou variações de tempo de resposta;
+- os cenários representam o comportamento observável das aplicações no momento da implementação.
 
 ## Limitações conhecidas
 
 ### Dependência de serviços externos
 
-A suíte depende da disponibilidade do Automation Exercise e da API do Trello. Instabilidades nesses serviços podem causar falhas que não representam necessariamente regressões na automação.
+A suíte depende do Automation Exercise e da API do Trello.
 
-### Massa de dados
+Como esses ambientes não são controlados pelo projeto, indisponibilidades podem impedir a execução de cenários dependentes.
 
-Parte da massa utilizada nos cenários Web ainda está definida próxima aos testes, como produto e dados utilizados no fluxo de pagamento.
+Para reduzir ambiguidade no diagnóstico, a solução possui verificação de disponibilidade e classificação de respostas relacionadas a configuração, rate limit e indisponibilidade.
 
-Para o tamanho atual da suíte, essa abordagem mantém a solução simples e legível. Com o crescimento do projeto, a estratégia poderia evoluir para factories, fixtures ou builders, reduzindo duplicação e facilitando manutenção e reutilização dos dados.
-
-Para os cenários de criação de conta via API, onde dados únicos são necessários, já foi utilizada uma Factory para geração da massa.
+Essas condições não são mascaradas como sucesso.
 
 ### Preparação de estado
 
-Alguns cenários de maior nível, como checkout e pagamento, ainda utilizam etapas anteriores da interface para preparar o estado necessário.
+Alguns cenários de maior nível, especialmente checkout e pagamento, ainda utilizam etapas da interface para preparar o estado necessário.
 
-Em uma suíte maior, seria avaliada a preparação dessas pré-condições através de API ou outros mecanismos de setup, quando suportados pela aplicação, reduzindo o tempo de execução e o acoplamento entre fluxos.
+A utilização de API para preparação de estado é preferível quando a aplicação disponibiliza endpoints adequados para esse objetivo, pois reduz tempo de execução e acoplamento entre fluxos.
+
+No ambiente utilizado pelo desafio, a preparação foi mantida pela interface nos pontos em que não há mecanismo de setup adequado disponível na solução implementada.
+
+Essa dependência é tratada como risco arquitetural conhecido.
 
 ## Comportamento observado — Pagamento
 
 Durante a implementação dos cenários de pagamento foi identificada uma diferença entre o comportamento esperado inicialmente e o comportamento efetivamente apresentado pela aplicação.
 
-Os campos de pagamento não realizam validação de formato ou consistência dos valores informados. Quando preenchidos, a aplicação aceita valores que não necessariamente representam dados válidos.
+Os campos de pagamento não apresentam validações suficientes de formato e consistência. Quando preenchidos, a aplicação aceita valores que não necessariamente representam dados válidos.
 
-Por outro lado, quando os campos obrigatórios permanecem vazios, o navegador impede a submissão do formulário devido às validações de obrigatoriedade existentes nos campos.
+Quando os campos obrigatórios permanecem vazios, o navegador impede a submissão devido às validações de obrigatoriedade existentes.
 
-Diante desse comportamento, não foram implementadas asserções que presumissem regras de validação inexistentes no sistema. A automação foi mantida aderente ao comportamento observável da aplicação.
+Diante desse comportamento, a automação não presume regras que não estão implementadas no produto.
 
-Como evolução do produto, recomenda-se implementar validações explícitas para os dados de pagamento, incluindo formato e consistência dos campos, acompanhadas de mensagens de erro claras para o usuário.
+O comportamento foi documentado como risco funcional conhecido.
+
+Como evolução do produto, recomenda-se implementar validações explícitas para os dados de pagamento, incluindo formato e consistência, acompanhadas de mensagens de erro claras.
 
 ## Decisões arquiteturais
 
-A arquitetura foi definida considerando o escopo e o tamanho atual da suíte, evitando abstrações desnecessárias.
+As decisões arquiteturais buscam manter responsabilidades explícitas e permitir evolução da suíte sem concentrar regras técnicas nos cenários.
 
-### Abstração proporcional ao tamanho da suíte
+Foram adotadas as seguintes decisões:
 
-A estrutura atual foi escolhida considerando a quantidade de cenários implementados no desafio.
+- Page Objects para encapsular interação e validação da interface;
+- camada dedicada de API para centralizar comunicação HTTP;
+- factories para centralização e geração de massa;
+- JSON Schema e AJV para validação de contratos;
+- separação entre validação de transporte, contrato e negócio;
+- sanitização de informações sensíveis antes da geração de logs;
+- geração de dados únicos para operações mutáveis;
+- cleanup de dados criados quando suportado;
+- classificação explícita de falhas relacionadas a dependências externas;
+- preflight de disponibilidade para cenários Web;
+- retry limitado e documentado;
+- rastreabilidade entre requisitos e cenários através de tags.
 
-Alguns pontos poderiam ser abstraídos ainda mais, como preparação de pedidos, massa de produtos e dados de pagamento. Entretanto, para o tamanho atual da suíte, abstrações adicionais poderiam aumentar a complexidade sem proporcionar ganho proporcional de manutenção.
-
-Caso a suíte cresça, a arquitetura poderá evoluir com:
-
-- factories e builders adicionais para massa de dados;
-- componentes reutilizáveis para comportamentos compartilhados;
-- preparação de estado através de API;
-- separação mais granular das camadas de serviço;
-- estratégias adicionais para execução paralela e gerenciamento de ambientes.
-
-A intenção foi manter a solução simples o suficiente para o escopo atual, mas preparada para evolução conforme o crescimento da cobertura.
-
+Novas abstrações devem possuir responsabilidade técnica clara e não apenas aumentar a quantidade de camadas do projeto.
 
 ## Rastreabilidade
 
 A matriz completa de rastreabilidade entre requisitos, funcionalidades e cenários automatizados está disponível em:
 
 `TRACEABILITY.md`
+
+## Parecer técnico
+
+A análise crítica da solução, riscos identificados, limitações, impactos e propostas de evolução está disponível em:
+
+`SDET_PARECER.md`

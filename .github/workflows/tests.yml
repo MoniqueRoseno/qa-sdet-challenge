@@ -31,17 +31,64 @@ jobs:
       - name: Run lint
         run: npm run lint
 
-      - name: Check login endpoint
+      - name: Validate required configuration
         run: |
-          echo "Checking login endpoint..."
-          curl -I "$BASE_URL/login"
+          missing=0
+
+          check_var () {
+            name="$1"
+            value="$2"
+
+            if [ -z "$value" ]; then
+              echo "[CONFIGURATION] $name is missing"
+              missing=1
+            fi
+          }
+
+          check_var "BASE_URL" "$BASE_URL"
+          check_var "TEST_USER_EMAIL" "$TEST_USER_EMAIL"
+          check_var "TEST_USER_PASSWORD" "$TEST_USER_PASSWORD"
+          check_var "TRELLO_API_KEY" "$TRELLO_API_KEY"
+          check_var "TRELLO_TOKEN" "$TRELLO_TOKEN"
+          check_var "TRELLO_BOARD_ID" "$TRELLO_BOARD_ID"
+
+          if [ "$missing" -eq 1 ]; then
+            exit 1
+          fi
+
+          echo "Required configuration is available."
         env:
           BASE_URL: ${{ secrets.BASE_URL }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+          TRELLO_BOARD_ID: ${{ secrets.TRELLO_BOARD_ID }}
 
-      - name: Check login redirects
+      - name: Preflight Automation Exercise
         run: |
-          echo "Checking redirects..."
-          curl -I -L --max-redirs 10 "$BASE_URL/login"
+          echo "Checking Automation Exercise availability..."
+
+          status=$(curl \
+            --silent \
+            --output /dev/null \
+            --write-out "%{http_code}" \
+            --max-time 20 \
+            "$BASE_URL")
+
+          echo "Automation Exercise HTTP status: $status"
+
+          if [ "$status" -ge 500 ] || [ "$status" -eq 000 ]; then
+            echo "[ENVIRONMENT] Automation Exercise is unavailable."
+            exit 1
+          fi
+
+          if [ "$status" -ge 400 ]; then
+            echo "[CONFIGURATION] Automation Exercise returned HTTP $status."
+            exit 1
+          fi
+
+          echo "Automation Exercise is available."
         env:
           BASE_URL: ${{ secrets.BASE_URL }}
 

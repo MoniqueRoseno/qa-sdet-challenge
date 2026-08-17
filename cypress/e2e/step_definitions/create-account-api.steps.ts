@@ -11,6 +11,10 @@ import {
 } from "../../support/factories/AccountFactory";
 
 import { accountApi } from "../../support/api/AccountApi";
+import { SchemaValidator } from "../../support/validators/SchemaValidator";
+
+import accountCreatedSchema from "../../schemas/account-created.schema.json";
+import accountErrorSchema from "../../schemas/account-error.schema.json";
 
 let account: AccountData;
 let response: Cypress.Response<any>;
@@ -24,7 +28,7 @@ const parseBody = (body: unknown): any => {
   return body;
 };
 
-Given( "que possuo dados válidos e únicos para uma nova conta",() => {
+Given("que possuo dados válidos e únicos para uma nova conta",() => {
     account = AccountFactory.create();
   }
 );
@@ -32,33 +36,6 @@ Given( "que possuo dados válidos e únicos para uma nova conta",() => {
 Given("que possuo dados de conta sem e-mail", () => {
   account = AccountFactory.create();
   account.email = "";
-});
-
-When("solicito a criação da conta", () => {
-  accountApi
-    .createAccount(account)
-    .then((apiResponse) => {
-      response = apiResponse;
-    });
-});
-
-Then("a API deve confirmar a criação com sucesso", () => {
-  expect(response.status).to.eq(200);
-  shouldDeleteAccount = true;
-});
-
-Then("deve retornar a mensagem de usuário criado", () => {
-   const body =
-    typeof response.body === "string"
-      ? JSON.parse(response.body)
-      : response.body;
-
-  expect(body).to.have.property("responseCode", 201);
-
-  expect(body).to.have.property(
-    "message",
-    "User created!"
-  );
 });
 
 Given("que existe uma conta previamente cadastrada",() => {
@@ -69,6 +46,16 @@ Given("que existe uma conta previamente cadastrada",() => {
       .then((createResponse) => {
         const body = parseBody(createResponse.body);
 
+        // Transporte
+        expect(createResponse.status).to.eq(200);
+
+        // Contrato
+        SchemaValidator.validate(
+          accountCreatedSchema,
+          body
+        );
+
+        // Regra de negócio
         expect(body.responseCode).to.eq(201);
         expect(body.message).to.eq("User created!");
 
@@ -77,41 +64,71 @@ Given("que existe uma conta previamente cadastrada",() => {
   }
 );
 
+When("solicito a criação da conta", () => {
+  accountApi.createAccount(account)
+    .then((apiResponse) => {
+      response = apiResponse;
+    });
+});
+
 When("solicito novamente a criação da conta com o mesmo e-mail",() => {
-    accountApi
-      .createAccount(account)
+    accountApi.createAccount(account)
       .then((apiResponse) => {
         response = apiResponse;
       });
   }
 );
 
-Then("a API deve rejeitar a criação duplicada", () => {
+Then("a API deve confirmar a criação com sucesso", () => {
+  expect(response.status).to.eq(200);
+
+  shouldDeleteAccount = true;
+});
+
+Then("deve retornar a mensagem de usuário criado", () => {
   const body = parseBody(response.body);
 
+  SchemaValidator.validate(
+    accountCreatedSchema,
+    body
+  );
+
+  expect(body.responseCode).to.eq(201);
+  expect(body.message).to.eq("User created!");
+});
+
+Then("a API deve rejeitar a criação", () => {
+  const body = parseBody(response.body);
+
+  expect(response.status).to.eq(200);
+
+  SchemaValidator.validate(
+    accountErrorSchema,
+    body
+  );
+
   expect(body.responseCode).to.not.eq(201);
+});
+
+Then("deve retornar uma resposta de erro", () => {
+  const body = parseBody(response.body);
 
   expect(body.message)
     .to.be.a("string")
     .and.not.be.empty;
 });
 
-Then("a API deve rejeitar a criação", () => {
-  const body =
-    typeof response.body === "string"
-      ? JSON.parse(response.body)
-      : response.body;
+Then("a API deve rejeitar a criação duplicada", () => {
+  const body = parseBody(response.body);
+
+  expect(response.status).to.eq(200);
+
+  SchemaValidator.validate(
+    accountErrorSchema,
+    body
+  );
 
   expect(body.responseCode).to.not.eq(201);
-});
-
-Then("deve retornar uma resposta de erro", () => {
-  const body =
-    typeof response.body === "string"
-      ? JSON.parse(response.body)
-      : response.body;
-
-  expect(body).to.have.property("message");
 
   expect(body.message)
     .to.be.a("string")

@@ -9,48 +9,40 @@ import { cartPage } from "../../support/page_objects/CartPage";
 import { checkoutPage } from "../../support/page_objects/CheckoutPage";
 import { paymentPage } from "../../support/page_objects/PaymentPage";
 import { getCredentials } from "../../support/utils/credentials";
+import { ProductFactory } from "../../support/factories/ProductFactory";
+import { PaymentFactory } from "../../support/factories/PaymentFactory";
 
-const product = {
-  id: 2,
-  name: "Men Tshirt",
-};
-
-const paymentData = {
-  name: "QA Test",
-  cardNumber: "4111111111111111",
-  cvc: "123",
-  month: "12",
-  year: "2030",
-};
+const product = ProductFactory.defaultProduct();
+const paymentData = PaymentFactory.valid();
 
 Given("que o usuário está na página de pagamento com um pedido preparado",() => {
     getCredentials().then(({ email, password }) => {
-    cy.login(email, password);
+      cy.login(email, password);
 
-    productsPage.visit();
+      productsPage.visit();
 
-    productsPage.addProductToCartById(
-      product.name,
-      product.id
-    );
+      productsPage.addProductToCartById(
+        product.name,
+        product.id
+      );
 
-    productsPage.validateProductAdded();
-    productsPage.goToCart();
+      productsPage.validateProductAdded();
+      productsPage.goToCart();
 
-    cartPage.validateProductName(
-      product.id,
-      product.name
-    );
+      cartPage.validateProductName(
+        product.id,
+        product.name
+      );
 
-    cartPage.proceedToCheckout();
+      cartPage.proceedToCheckout();
 
-    checkoutPage.validateCheckoutPage();
-    checkoutPage.placeOrder();
+      checkoutPage.validateCheckoutPage();
+      checkoutPage.placeOrder();
 
-    paymentPage.validatePaymentPage();
+      paymentPage.validatePaymentPage();
+    });
   }
-)
-})
+);
 
 When("ele informa os dados de pagamento", () => {
   paymentPage.fillPaymentData(
@@ -66,9 +58,7 @@ When("confirma o pedido", () => {
   paymentPage.confirmOrder();
 });
 
-When(
-  "ele tenta confirmar o pedido sem preencher os dados de pagamento",
-  () => {
+When("ele tenta confirmar o pedido sem preencher os dados de pagamento",() => {
     paymentPage.confirmOrder();
   }
 );
@@ -85,10 +75,7 @@ Then("o sistema deve impedir a conclusão do pedido", () => {
   paymentPage.validateOrderWasNotCompleted();
 });
 
-Then(
-  "os campos obrigatórios devem permanecer inválidos",
-  () => {
+Then("os campos obrigatórios devem permanecer inválidos",() => {
     paymentPage.validateRequiredFields();
   }
 );
-

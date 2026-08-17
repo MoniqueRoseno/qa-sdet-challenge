@@ -1,147 +1,385 @@
 # Parecer Crítico SDET
 
-## Visão geral
+## 1. Visão geral
 
-A aplicação apresenta boa testabilidade para os fluxos principais, principalmente por possuir rotas previsíveis, elementos com atributos relativamente estáveis em diversos pontos e APIs acessíveis para automação.
+A análise da aplicação e da solução de automação considerou não apenas a cobertura funcional, mas também testabilidade, isolamento, confiabilidade dos resultados, segurança das evidências, dependências externas e sustentabilidade da suíte.
 
-Para o escopo atual do desafio, a arquitetura implementada atende bem à quantidade de cenários existente, mantendo separação entre features, step definitions, page objects, camada de API, comandos reutilizáveis e geração de dados.
+A estratégia adotada busca separar claramente:
 
-A solução foi mantida propositalmente simples, evitando abstrações excessivas para o tamanho atual da suíte. Com o crescimento da cobertura, alguns pontos podem evoluir para reduzir duplicação, tempo de execução e custo de manutenção.
+- comportamento funcional;
+- transporte e comunicação com APIs;
+- contratos;
+- regras de negócio;
+- geração de dados;
+- preparação de estado;
+- falhas de produto;
+- falhas de automação;
+- falhas de configuração;
+- indisponibilidade de ambiente.
 
-## Testabilidade
+Durante a implementação foram identificados riscos relacionados principalmente à validação de pagamento, dependência de serviços externos, preparação de estado via interface e disponibilidade dos ambientes.
+
+Esses riscos são detalhados neste parecer juntamente com as respectivas estratégias de mitigação e riscos residuais.
+
+---
+
+## 2. Testabilidade
 
 ### Pontos positivos
 
 A aplicação apresentou características favoráveis à automação:
 
 - presença de atributos como `data-qa` em campos importantes;
-- URLs previsíveis para navegação;
-- estrutura de carrinho que permite identificar produtos individualmente;
-- retorno observável após autenticação, logout e conclusão de pedidos;
-- APIs que permitem validar regras independentemente da interface;
+- URLs previsíveis;
+- estrutura do carrinho que permite identificar produtos individualmente;
+- resultados observáveis após autenticação, logout e conclusão de pedidos;
+- APIs disponíveis para validação independente da interface;
 - possibilidade de geração e limpeza de massa através da API de contas.
 
-A utilização de seletores estáveis foi priorizada sempre que disponível. Quando não havia um atributo específico para teste, os seletores foram encapsulados nos Page Objects para reduzir o impacto de futuras mudanças na interface.
+Seletores estáveis foram priorizados sempre que disponíveis.
 
-## Limitações observadas
+Quando não havia atributo específico para teste, os seletores foram encapsulados nos Page Objects, reduzindo o impacto de alterações futuras da interface.
 
-### Validação dos dados de pagamento
+---
 
-O principal gap funcional identificado está no fluxo de pagamento.
+## 3. Estratégia de dados
 
-O requisito WEB-05 determina que campos obrigatórios e dados de pagamento inválidos devem bloquear o avanço. :contentReference[oaicite:1]{index=1}
+A massa de testes é tratada de acordo com sua natureza.
 
-Durante os testes exploratórios, porém, foi observado que a aplicação implementa essencialmente a obrigatoriedade dos campos, mas não valida adequadamente o conteúdo informado.
+Dados reutilizáveis de produto e pagamento são centralizados através de factories, evitando que informações de teste permaneçam duplicadas ou diretamente definidas nos Step Definitions.
 
-Foram aceitos, por exemplo:
+Foram utilizadas:
+
+- `AccountFactory`;
+- `ProductFactory`;
+- `PaymentFactory`.
+
+Para operações mutáveis, a estratégia prioriza geração dinâmica e unicidade.
+
+Na criação de contas via API, a `AccountFactory` gera dados únicos para reduzir colisões entre execuções e permitir execução independente.
+
+Quando uma conta é criada durante um cenário, a suíte executa cleanup após o teste quando aplicável.
+
+### Risco
+
+Dados mutáveis compartilhados entre execuções poderiam gerar colisões e tornar os testes dependentes de estado anterior.
+
+### Mitigação
+
+- geração de dados únicos;
+- centralização da massa;
+- cleanup quando suportado;
+- independência entre cenários.
+
+### Risco residual
+
+Dependências externas podem manter estado fora do controle da suíte caso uma execução seja interrompida antes do cleanup.
+
+Nesse caso, a geração de dados únicos reduz a possibilidade de colisão em execuções futuras.
+
+---
+
+## 4. Estratégia de testes de API
+
+Os testes de API foram estruturados para separar transporte, contrato e regra de negócio.
+
+A validação ocorre em três níveis:
+
+### Transporte
+
+Validação do status HTTP retornado pelo serviço.
+
+### Contrato
+
+As respostas são validadas utilizando JSON Schema e AJV.
+
+Foram definidos schemas específicos para os contratos utilizados pela automação, incluindo criação de conta, respostas de erro e consulta de ações do Trello.
+
+A validação de contrato permite detectar alterações estruturais, ausência de propriedades obrigatórias ou tipos incompatíveis.
+
+### Regra de negócio
+
+Após a validação estrutural, são realizadas asserções relacionadas ao comportamento esperado.
+
+Exemplos:
+
+- confirmação da criação de usuário;
+- rejeição de conta sem e-mail;
+- rejeição de conta duplicada;
+- retorno de lista de ações do Trello;
+- presença do nome da lista quando a ação possui associação com uma lista.
+
+Essa separação evita considerar uma resposta válida apenas porque retornou HTTP 200.
+
+---
+
+## 5. Segurança e sanitização das evidências
+
+Credenciais, tokens e outros dados sensíveis são mantidos fora do código-fonte através de variáveis de ambiente.
+
+O arquivo `.env` não é versionado e, no CI, as credenciais são fornecidas através de GitHub Secrets.
+
+Além disso, requests que manipulam informações sensíveis utilizam `log: false`.
+
+Quando informações de request ou response são utilizadas para diagnóstico, os dados passam por sanitização antes de serem registrados.
+
+Campos como:
+
+- password;
+- token;
+- API Key;
+- authorization;
+- secrets equivalentes;
+
+são mascarados nas evidências.
+
+### Risco
+
+Logs automáticos de chamadas de API poderiam expor credenciais utilizadas pela automação.
+
+### Mitigação
+
+- secrets externos ao repositório;
+- `.env` ignorado pelo Git;
+- `log: false` em requisições sensíveis;
+- sanitização antes da geração de logs.
+
+### Risco residual
+
+Novos campos sensíveis adicionados futuramente precisam ser incorporados à estratégia de sanitização.
+
+---
+
+## 6. Dependências externas e indisponibilidade de ambiente
+
+Automation Exercise e Trello são dependências externas e não são controlados pela suíte.
+
+Por isso, uma falha de comunicação não deve ser automaticamente interpretada como regressão funcional.
+
+Foi implementada uma estratégia de detecção e classificação de falhas.
+
+### Automation Exercise
+
+Os cenários Web executam uma verificação de disponibilidade antes da execução.
+
+Caso a aplicação não esteja acessível, a falha é identificada antes das validações funcionais.
+
+### Trello
+
+As respostas do serviço são classificadas de acordo com o status retornado.
+
+Exemplos:
+
+| Resposta | Classificação | Interpretação |
+|---|---|---|
+| 2xx | disponível | execução funcional pode prosseguir |
+| 401 / 403 | configuração | credencial, token ou autorização |
+| 429 | rate limit | limitação da dependência externa |
+| 5xx | ambiente | indisponibilidade ou instabilidade externa |
+
+A indisponibilidade não é transformada em sucesso nem ignorada.
+
+O cenário permanece com falha, mas a causa é explicitamente classificada para facilitar o diagnóstico.
+
+### Contingência
+
+Quando uma dependência externa estiver indisponível:
+
+1. a falha deve permanecer visível;
+2. a causa deve ser classificada;
+3. as evidências disponíveis devem ser preservadas;
+4. não deve ser aberto automaticamente um defeito funcional sem análise da causa;
+5. a execução pode ser repetida após normalização do ambiente.
+
+### Risco residual
+
+Uma dependência pode estar tecnicamente acessível e ainda apresentar degradação parcial, comportamento inconsistente ou lentidão.
+
+Por isso, o preflight reduz ambiguidade, mas não substitui as validações realizadas pelos próprios cenários.
+
+---
+
+## 7. Política de retry e flakiness
+
+A suíte utiliza retry limitado:
+
+- `runMode: 1`;
+- `openMode: 0`.
+
+Em execução headless/CI, uma falha pode receber uma tentativa adicional.
+
+Em execução interativa local, retry permanece desabilitado para tornar falhas imediatamente visíveis durante desenvolvimento e investigação.
+
+Retry não deve ser utilizado para mascarar:
+
+- falhas de contrato;
+- falhas de regra de negócio;
+- configuração incorreta;
+- autenticação inválida;
+- defeitos determinísticos.
+
+A tentativa adicional em CI auxilia na identificação de instabilidades transitórias.
+
+Uma falha que passa apenas após retry deve ser considerada sinal de possível flakiness e analisada, e não simplesmente tratada como evidência de estabilidade.
+
+---
+
+## 8. Preparação de estado
+
+Os cenários de checkout e pagamento ainda dependem parcialmente de etapas anteriores da interface para criação do estado necessário.
+
+Isso cria maior acoplamento e aumenta o tempo de execução.
+
+### Risco
+
+Uma falha em uma etapa de preparação pode impedir a validação do comportamento realmente pretendido pelo cenário.
+
+Por exemplo, uma instabilidade na inclusão do produto no carrinho pode impedir que o cenário de pagamento chegue ao comportamento que pretende validar.
+
+### Estratégia recomendada
+
+Quando a aplicação fornecer APIs ou mecanismos de test support adequados, pré-condições devem ser preparadas fora da interface sempre que isso não eliminar o comportamento que o cenário pretende testar.
+
+Exemplos:
+
+- teste de autenticação → autenticação pela interface;
+- teste de checkout → autenticação pode ser preparada tecnicamente;
+- teste de pagamento → carrinho/pedido pode ser preparado por API quando houver suporte.
+
+### Limitação atual
+
+No ambiente utilizado, nem todos os estados necessários ao checkout e pagamento possuem mecanismo de preparação adequado disponível na solução implementada.
+
+Por isso, parte do setup permanece pela interface.
+
+### Risco residual
+
+Permanece acoplamento entre algumas etapas Web.
+
+Esse risco é conhecido e deve ser considerado caso a cobertura ou o volume de execução aumente.
+
+---
+
+## 9. Gap funcional — validação de pagamento
+
+O principal gap funcional identificado durante os testes exploratórios está no fluxo de pagamento.
+
+Foi observado que os campos possuem validação de obrigatoriedade, porém não apresentam validação suficiente de formato ou consistência.
+
+Foram aceitos comportamentos como:
 
 - número de cartão com apenas um caractere;
 - CVC alfabético;
 - CVC com apenas um caractere;
 - mês de validade igual a `13`;
-- valores com formato incompatível com o esperado.
+- valores incompatíveis com formatos esperados.
 
-Quando os campos permanecem vazios, a submissão é bloqueada pela validação nativa do navegador através do atributo `required`.
+Quando os campos permanecem vazios, a submissão é bloqueada pela validação de obrigatoriedade existente.
 
-Diante disso, a automação não foi alterada para simular uma regra que o produto não possui. O comportamento observado foi tratado como limitação funcional e risco residual.
+A automação não foi adaptada para simular uma regra inexistente no produto.
 
-Essa decisão também segue a orientação do próprio desafio de validar apenas o comportamento observável do ambiente quando o gateway ou a natureza real do pagamento não estão claramente definidos. :contentReference[oaicite:2]{index=2}
+### Impacto
 
-### Massa de dados
+Dados estruturalmente inválidos podem avançar no fluxo de pagamento.
 
-A estratégia atual de massa atende ao tamanho da suíte, porém pode ser evoluída.
+Em uma aplicação real integrada a serviços financeiros, isso poderia aumentar rejeições posteriores, inconsistência na experiência do usuário e dependência desnecessária de validações downstream.
 
-Alguns dados estáticos, como produto utilizado nos fluxos Web e informações de pagamento, ainda são definidos próximos aos cenários.
+### Recomendação
 
-Com o crescimento da cobertura, recomendo centralizar esses dados em factories, fixtures ou builders, de acordo com sua natureza.
+Implementar validações explícitas para:
 
-Dados mutáveis ou que exigem unicidade devem continuar sendo gerados dinamicamente. Essa abordagem já foi aplicada na criação de contas via API através da `AccountFactory`.
+- formato do número do cartão;
+- tamanho e formato do CVC;
+- mês válido;
+- ano de validade;
+- mensagens de erro associadas aos campos.
 
-Essa evolução reduziria duplicação, facilitaria manutenção e permitiria criação de massas específicas por cenário.
+Após implementação das regras, os cenários negativos devem ser incorporados à regressão.
 
-### Preparação de estado
+### Risco residual
 
-Os cenários de checkout e pagamento percorrem etapas anteriores da interface para preparar o estado necessário.
+A cobertura atual valida somente o comportamento observável da aplicação e não representa autorização financeira real.
 
-Essa estratégia é adequada para o escopo atual e mantém o fluxo fácil de entender. Entretanto, em uma suíte maior, aumentaria o tempo de execução e o acoplamento entre funcionalidades.
+---
 
-Como próximo incremento, avaliaria preparar pré-condições através de APIs quando disponíveis, mantendo os testes de UI responsáveis apenas pelo comportamento que realmente precisam validar.
+## 10. Cobertura de pagamento
 
-Por exemplo:
-
-- o teste de login continua validando autenticação pela interface;
-- o teste de checkout pode iniciar com usuário já autenticado;
-- o teste de pagamento pode iniciar com pedido previamente preparado por uma camada de serviço.
-
-## Riscos residuais
-
-Mesmo com a cobertura implementada, permanecem alguns riscos não totalmente cobertos.
-
-### Dependência de ambientes externos
-
-Automation Exercise e Trello são serviços externos à suíte.
-
-Indisponibilidade, lentidão ou alteração desses ambientes pode causar falhas sem que exista regressão no código da automação.
-
-O próprio desafio reconhece que ambiente, credenciais e estabilidade não são garantidos e orienta que essas condições sejam configuráveis e documentadas. :contentReference[oaicite:3]{index=3}
-
-Por isso, falhas devem ser classificadas entre:
-
-- falha de produto;
-- falha de teste;
-- falha de dados;
-- indisponibilidade de ambiente.
-
-Essa classificação também é exigida no relatório de execução. :contentReference[oaicite:4]{index=4}
-
-### Cobertura de pagamento
-
-Como não há evidência de integração com um gateway financeiro real, a cobertura valida apenas os comportamentos observáveis da interface.
+Não há evidência, no escopo analisado, de integração com gateway financeiro real que permita validar todo o ciclo de pagamento.
 
 Não são utilizados dados financeiros reais.
 
-Permanecem sem cobertura aspectos como:
+Permanecem fora da cobertura:
 
 - autorização real do cartão;
 - antifraude;
 - comunicação com adquirente;
-- recusas de pagamento;
-- timeout do gateway;
-- estorno e chargeback.
+- recusas do emissor;
+- timeout de gateway;
+- estorno;
+- chargeback.
 
-### Compatibilidade entre navegadores
+Em um produto real, esses comportamentos deveriam ser cobertos em camadas apropriadas utilizando ambientes controlados, mocks, stubs ou sandboxes dos provedores envolvidos.
 
-A suíte foi priorizada para um navegador principal.
+---
 
-Uma iniciativa real poderia adicionar execução em outros navegadores de acordo com métricas de uso e risco.
+## 11. Matriz de riscos
 
-### Performance, segurança e acessibilidade
+| Risco | Probabilidade | Impacto | Detecção | Mitigação | Contingência | Residual |
+|---|---|---|---|---|---|---|
+| Automation Exercise indisponível | Média | Alto | Preflight | Environment Check | Classificar falha e preservar evidências | Médio |
+| Trello indisponível | Média | Médio | Status da API | Failure Classifier | Classificar como ambiente | Baixo/Médio |
+| Credencial Trello inválida | Média | Médio | 401/403 | Secrets + validação de configuração | Classificar como configuração | Baixo |
+| Rate limit Trello | Baixa/Média | Médio | HTTP 429 | Classificação específica | Nova execução após normalização | Baixo |
+| Colisão de dados de conta | Baixa | Médio | Resposta API | Factory com dados únicos | Gerar nova massa | Baixo |
+| Alteração de contrato API | Média | Alto | AJV | JSON Schema | Falha explícita de contrato | Médio |
+| Vazamento de segredo em log | Baixa | Alto | Revisão de evidências | Sanitização + `log: false` | Rotação da credencial se necessário | Baixo |
+| Dados inválidos de pagamento aceitos | Alta | Alto | Teste exploratório | Gap documentado | Correção funcional | Alto |
+| Setup Web acoplado | Média | Médio | Falha em pré-condição | Commands/API quando disponíveis | Diagnóstico da etapa responsável | Médio |
+| Flakiness transitória | Média | Médio | Retry/relatórios | Retry limitado | Investigação da causa | Médio |
 
-Esses aspectos não fazem parte do escopo obrigatório do desafio, mas representam riscos residuais importantes em uma aplicação de comércio eletrônico.
+---
 
-O próprio enunciado indica que performance, segurança ofensiva, compatibilidade ampla e acessibilidade completa estão fora do escopo obrigatório, mas devem ser considerados em uma iniciativa real. :contentReference[oaicite:5]{index=5}
+## 12. Compatibilidade, performance, segurança e acessibilidade
 
-## Próximos incrementos
+A cobertura principal foi priorizada de acordo com o escopo funcional do desafio.
 
-Caso a suíte evoluísse para um projeto de longo prazo, eu priorizaria:
+Em uma iniciativa de produto real, outros atributos de qualidade também devem ser considerados de acordo com risco e criticidade:
 
-1. evoluir a estratégia de massa com factories, builders e fixtures;
-2. preparar estados complexos através de APIs para reduzir tempo de execução;
-3. criar validações funcionais mais robustas no pagamento;
-4. expandir cobertura de contratos das APIs;
-5. adicionar execução paralela conforme o volume da suíte;
-6. ampliar a matriz de browsers de acordo com risco e uso;
+- compatibilidade entre navegadores;
+- acessibilidade;
+- performance;
+- segurança;
+- resiliência;
+- observabilidade.
+
+A priorização dessas frentes deve considerar criticidade do fluxo, volume de usuários, arquitetura e impacto de falha.
+
+---
+
+## 13. Próximos incrementos
+
+Os próximos incrementos recomendados seriam:
+
+1. reduzir preparação de estado via UI quando APIs adequadas estiverem disponíveis;
+2. incorporar cenários negativos de pagamento após implementação das regras funcionais;
+3. acompanhar taxa de retry e flakiness ao longo das execuções;
+4. acompanhar duração da suíte e avaliar paralelização conforme o volume crescer;
+5. ampliar contratos de API conforme novos endpoints forem incorporados;
+6. ampliar matriz de browsers baseada em risco e dados de uso;
 7. incorporar testes de acessibilidade;
-8. incluir testes de performance nos fluxos críticos;
-9. adicionar uma estratégia específica de testes de segurança;
-10. acompanhar métricas de flakiness, duração, taxa de falha e causas recorrentes.
+8. adicionar performance aos fluxos críticos;
+9. evoluir testes de segurança de acordo com o contexto da aplicação.
 
-## Conclusão
+---
 
-A solução atual busca equilíbrio entre cobertura, legibilidade e manutenção.
+## 14. Conclusão
 
-Para o volume de testes implementado, a arquitetura atende ao objetivo sem introduzir camadas ou abstrações desnecessárias. Ao mesmo tempo, existem pontos claros de evolução caso a suíte cresça, especialmente em massa de dados, preparação de estado, cobertura de pagamento e tratamento de dependências externas.
+A estratégia de qualidade busca tornar explícita a diferença entre falha funcional, falha de contrato, problema de configuração e indisponibilidade de dependência externa.
 
-O principal ponto funcional identificado durante a análise foi a ausência de validação adequada dos dados de pagamento. Esse comportamento deve ser tratado como risco do produto, e não mascarado pela automação.
+A arquitetura utiliza separação de responsabilidades, factories para gestão de dados, validação de contratos com JSON Schema/AJV, sanitização de evidências, classificação de falhas externas e política limitada de retry.
 
-A estratégia adotada foi priorizar testes determinísticos, rastreáveis e alinhados ao comportamento observável, mantendo explícitas as limitações e os riscos que permanecem fora da cobertura atual.
+Os principais riscos residuais estão relacionados à preparação parcial de estado pela interface, dependência de ambientes externos e às limitações funcionais observadas no pagamento.
+
+Esses riscos não são tratados como detalhes de implementação: são documentados considerando impacto, mitigação, contingência e evolução recomendada.
+
+O objetivo da suíte não é apenas produzir execuções verdes, mas gerar sinais confiáveis sobre a qualidade do produto e permitir distinguir regressões reais de problemas de teste, dados, configuração ou ambiente.
